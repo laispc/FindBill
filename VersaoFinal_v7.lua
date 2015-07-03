@@ -764,8 +764,9 @@ if (sim_call_type==sim_childscriptcall_initialization) then
 
 	state = LOOK_TO_TARGET
 	
-	map = new_map('/home/ddiorio/Documents/USP20151/robosmoveis/TrabalhoFinal/maptop.txt', '/home/ddiorio/Documents/USP20151/robosmoveis/TrabalhoFinal/missao.txt')
-	
+	--map = new_map('/home/ddiorio/Documents/USP20151/robosmoveis/TrabalhoFinal/maptop.txt', '/home/ddiorio/Documents/USP20151/robosmoveis/TrabalhoFinal/missao.txt')
+	map = new_map('/home/laispc/FindBill/maptop.txt', '/home/laispc/FindBill/missao.txt')
+
 	rightWheel = 1
 	leftWheel = -1
 	k = {}
