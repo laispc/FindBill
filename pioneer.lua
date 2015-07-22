@@ -290,7 +290,7 @@ function findDoors()
             local collinearIndex = -1
             for j=i-1,1,-1 do
                 if math.abs(slope(laser[i+2], laser[i])
-                        - slope(laser[i], laser[j])) < 0.4
+                        - slope(laser[i], laser[j])) < 0.5
                         and distance(laser[i], laser[j]) < 1.1 then
                     collinearIndex = j
                     break
@@ -363,6 +363,49 @@ function goToDoor()
     end
 end
 
+function isOnRightDirection()
+    return (map.dir == 0 and ((bussola() > 355 and bussola() <= 359) 
+                or (bussola() >= 0 and bussola() < 5 )))
+                or (map.dir == 90  and bussola() > 85  and bussola() < 95)
+                or (map.dir == 270 and bussola() > 265 and bussola() < 275)
+                or (map.dir == 180 and bussola() > 175 and bussola() < 185)
+end
+
+function findDirectionControl(v, wheel)
+    return v * math.exp(wheel * k.direction * (map.dir - bussola()))
+end
+
+function findDirection()
+    vLeft = findDirectionControl(vLeft, leftWheel)
+    vRight = findDirectionControl(vRight, rightWheel)
+end
+
+function roomStateMachine()
+    if state == FIND_DIRECTION then
+        findDirection()
+        if isOnRightDirection() then
+            log:write("going to state GO_TO_DOOR")
+            state = GO_TO_DOOR
+        end
+    elseif state == GO_TO_DOOR then
+        goToDoor()
+        if radius(doors[1].center) < 1 then
+            log:write("going to state PASS_DOOR")
+            state = PASS_DOOR
+        end
+    elseif state == PASS_DOOR then
+
+    end
+end
+
+function corridorStateMachine()
+    -- body
+end
+
+function outdoorStateMachine()
+    -- body
+end
+
 if (sim_call_type==sim_childscriptcall_initialization) then 
     motorLeft=simGetObjectHandle("Pioneer_p3dx_leftMotor")
     motorRight=simGetObjectHandle("Pioneer_p3dx_rightMotor")
@@ -383,9 +426,15 @@ if (sim_call_type==sim_childscriptcall_initialization) then
     k = {}
     k.dooralignment = 0.9
     k.doordistance = 0.7
+    k.direction = 0.07
 
     threshold = {}
     threshold.doorSize = 0.85
+
+    FIND_DIRECTION = 0
+    GO_TO_DOOR = 1
+    PASS_DOOR = 2
+    state = FIND_DIRECTION
 end 
 
 if (sim_call_type==sim_childscriptcall_cleanup) then 
@@ -399,7 +448,13 @@ if (sim_call_type==sim_childscriptcall_actuation) then
     vLeft=v0
     vRight=v0
 
-    goToDoor()
+    if map.actual_room.type == 'sala' then
+        roomStateMachine()
+    elseif map.actual_room.type == 'corredor' then
+        corridorStateMachine()
+    elseif map.actual_room.type == 'outdoor' then
+        outdoorStateMachine()
+    end
     
     simSetJointTargetVelocity(motorLeft,vLeft)
     simSetJointTargetVelocity(motorRight,vRight)
