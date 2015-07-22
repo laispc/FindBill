@@ -275,7 +275,7 @@ function radius(point)
 end
 
 function distance(from, to)
-    return math.abs(radius(to) - radius(from))
+    return radius({x = to.x - from.x, y = to.y - from.y})
 end
 
 function slope(from, to)
@@ -287,19 +287,18 @@ function findDoors()
     local todraw = {}
     for i=#laser-2,2,-1 do
         if distance(laser[i], laser[i-1]) > threshold.doorSize then
-            local collinearIndex = -1
+            local min = {}
             for j=i-1,1,-1 do
-                if math.abs(slope(laser[i+2], laser[i])
-                        - slope(laser[i], laser[j])) < 0.5
-                        and distance(laser[i], laser[j]) < 1.1 then
-                    collinearIndex = j
-                    break
-                end
+                table.insert(min,
+                    {dist = distance(laser[i], laser[j]), index = j})
             end
-            if collinearIndex ~= -1 then
+            if #min > 0 then
+                table.sort(min, function(a, b)
+                    return a.dist < b.dist
+                end)
                 table.insert(d, new_door(laser[i], i,
-                                             laser[collinearIndex], collinearIndex))
-                i = collinearIndex
+                             laser[min[1].index], min[1].index))
+                i = min.index
             end
         end
     end
@@ -312,7 +311,7 @@ function findDoors()
     end
 
     log:write("----------\n")
-    for k,v in pairs(doors) do
+    for k,v in ipairs(doors) do
         log:write("{",v.b.x,";",v.b.y,"}", 
                   "{", v.center.x, ";", v.center.y, "}", 
                   "{",v.e.x,";",v.e.y,"}\n")
@@ -352,8 +351,8 @@ end
 
 function goToDoorControl(v, wheel)
     return v * math.exp(
-        wheel * (k.dooralignment * (radius(doors[1].b) - radius(doors[1].e))
-        - k.doordistance * doors[1].center.x))
+        wheel * --(k.dooralignment * (radius(doors[1].b) - radius(doors[1].e))))
+         - k.doordistance * doors[1].center.x)
 end
 
 function goToDoor()
