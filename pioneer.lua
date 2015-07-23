@@ -7,7 +7,6 @@ function new_ambient(ambientType, ambientName)
     this.south = nil
     this.east  = nil
     this.west  = nil
-    this.here  = false
     this.path  = false
     this.visited = false
     return this
@@ -116,7 +115,6 @@ function new_map(maptop, mission)
         table.insert(l, line:sub(1,-2))
     end
     this.from = this.rooms[l[1]]
-    this.from.here = true
     this.actual_room = this.from -- I am where I start
     this.to = this.rooms[l[2]]
     this.target    = {}
@@ -181,34 +179,29 @@ function new_map(maptop, mission)
     this:findDir()
 
     this.nextRoom = function(self)
-        self.actual_room.here = false
         if(self.actual_room.north ~= nil 
                 and self.actual_room.north.path 
                 and not self.actual_room.north.visited) then
             self.actual_room = self.actual_room.north
-            self.actual_room.here = true
             self.actual_room.visited = true
         elseif(self.actual_room.south ~= nil 
                 and self.actual_room.south.path 
                 and not self.actual_room.south.visited) then
             self.actual_room = self.actual_room.south
-            self.actual_room.here = true
             self.actual_room.visited = true
         elseif(self.actual_room.east ~= nil 
                 and self.actual_room.east.path 
                 and not self.actual_room.east.visited) then
             self.actual_room = self.actual_room.east
-            self.actual_room.here = true
             self.actual_room.visited = true
         elseif(self.actual_room.west ~= nil 
                 and self.actual_room.west.path 
                 and not self.actual_room.west.visited) then
             self.actual_room = self.actual_room.west
-            self.actual_room.here = true
             self.actual_room.visited = true
         end
         self:findDir()
-
+        log:write("Now on room ", self.actual_room.name, "\n")
     end
 
     this.getNextRoom = function(self)
@@ -296,9 +289,11 @@ function findDoors()
                 table.sort(min, function(a, b)
                     return a.dist < b.dist
                 end)
-                table.insert(d, new_door(laser[i], i,
-                             laser[min[1].index], min[1].index))
-                i = min.index
+                if distance(laser[i], laser[min[1].index]) < 1.2 then
+                    table.insert(d, new_door(laser[i], i,
+                                 laser[min[1].index], min[1].index))
+                    i = min.index
+                end
             end
         end
     end
@@ -309,7 +304,7 @@ function findDoors()
         end)
         doors = d
     end
-
+    --[[
     log:write("----------\n")
     for k,v in ipairs(doors) do
         log:write("{",v.b.x,";",v.b.y,"}", 
@@ -327,7 +322,19 @@ function findDoors()
         table.insert(todraw, v.e.x)
         table.insert(todraw, v.e.y)
         table.insert(todraw, 0)
-    end
+    end]]
+
+    table.insert(todraw,doors[1].b.x)
+    table.insert(todraw,doors[1].b.y)
+    table.insert(todraw,0)
+
+    table.insert(todraw,doors[1].center.x)
+    table.insert(todraw,doors[1].center.y)
+    table.insert(todraw,0)
+
+    table.insert(todraw,doors[1].e.x)
+    table.insert(todraw,doors[1].e.y)
+    table.insert(todraw,0)
 
     table.insert(todraw,5)
     table.insert(todraw,-1)
@@ -354,6 +361,10 @@ function goToDoorControl(v, wheel)
 end
 
 function goToDoor()
+    if radius(doors[1].center) < 1 then
+        state = PASS_DOOR
+    end
+
     if #doors > 0 then
         vLeft = goToDoorControl(vLeft, leftWheel)
         vRight = goToDoorControl(vRight, rightWheel)
@@ -373,6 +384,10 @@ function findDirectionControl(v, wheel)
 end
 
 function findDirection()
+    if isOnRightDirection() then
+        state = GO_TO_DOOR
+    end
+
     vLeft = findDirectionControl(vLeft, leftWheel)
     vRight = findDirectionControl(vRight, rightWheel)
 end
@@ -383,48 +398,53 @@ function passDoorControl(v, wheel)
 end
 
 function passDoor()
+    if radius(doors[1].center) > 1.25 then
+        map:nextRoom()
+        state = FIND_DIRECTION
+    end
+
     vLeft = passDoorControl(vLeft, leftWheel)
     vRight = passDoorControl(vRight, rightWheel)
-    -- local difference = radius(doors[1].b) - radius(doors[1].e)
-    -- if math.abs(difference) > 0.05 then
-    --     vLeft = vLeft - k.passDoor * difference
-    --     vRight = vRight + k.passDoor * difference
-    -- end
+end
+
+function walkOnCorridorControl(v, wheel)
+    return v * math.exp(wheel * k.walkOnCorridor
+        * (radius(laser[1]) - radius(laser[#laser])))
+end
+
+function walkOnCorridor()
+    log:write("{", doors[1].center.x, ";", doors[1].center.y, "}\n")
+    if math.abs(doors[1].center.y) < math.abs(doors[1].center.x)
+            and math.abs(doors[1].center.y) < 1 then
+        map:nextRoom()
+        state = FIND_DIRECTION
+    end
+
+    -- vLeft = walkOnCorridorControl(vLeft, leftWheel)
+    -- vRight = walkOnCorridorControl(vRight, rightWheel)
 end
 
 function roomStateMachine()
     if state == FIND_DIRECTION then
-        if isOnRightDirection() then
-            log:write("going to state GO_TO_DOOR")
-            state = GO_TO_DOOR
-        end
-
         findDirection()
     elseif state == GO_TO_DOOR then
-        if radius(doors[1].center) < 1 then
-            log:write("going to state PASS_DOOR")
-            state = PASS_DOOR
-        end
-
         goToDoor()
     elseif state == PASS_DOOR then
-        if radius(doors[1].center) > 1.25 then
-            map:nextRoom()
-            state = FIND_DIRECTION
-        end
-
         passDoor()
     end
 end
 
 function corridorStateMachine()
     if state == FIND_DIRECTION then
-        if isOnRightDirection() then
-            log:write("going to state GO_TO_DOOR")
-            state = STOP
-        end
-
         findDirection()
+    elseif state == GO_TO_DOOR then
+        if map:getNextRoom().type == 'corredor' then
+            walkOnCorridor()
+        else
+            goToDoor()
+        end
+    elseif state == PASS_DOOR then
+        passDoor()
     end
 end
 
@@ -450,10 +470,10 @@ if (sim_call_type==sim_childscriptcall_initialization) then
     doors = {}
 
     k = {}
-    -- k.dooralignment = 0.9
     k.doordistance = 0.7
     k.direction = 0.007
     k.passDoor = 0.08
+    k.walkOnCorridor = 0.08
 
     threshold = {}
     threshold.doorSize = 0.85
@@ -469,7 +489,8 @@ if (sim_call_type==sim_childscriptcall_cleanup) then
  
 end 
 
-if (sim_call_type==sim_childscriptcall_actuation) then 
+if (sim_call_type==sim_childscriptcall_actuation) then
+    log:write("----------\n")
     readLaser()
     findDoors()
 
@@ -490,4 +511,3 @@ if (sim_call_type==sim_childscriptcall_actuation) then
     simSetJointTargetVelocity(motorLeft,vLeft)
     simSetJointTargetVelocity(motorRight,vRight)
 end 
-    
