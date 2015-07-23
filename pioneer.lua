@@ -304,37 +304,20 @@ function findDoors()
         end)
         doors = d
     end
-    --[[
-    log:write("----------\n")
-    for k,v in ipairs(doors) do
-        log:write("{",v.b.x,";",v.b.y,"}", 
-                  "{", v.center.x, ";", v.center.y, "}", 
-                  "{",v.e.x,";",v.e.y,"}\n")
+    
+    if #doors > 0 then
+        table.insert(todraw,doors[1].b.x)
+        table.insert(todraw,doors[1].b.y)
+        table.insert(todraw,0)
 
-        table.insert(todraw, v.b.x)
-        table.insert(todraw, v.b.y)
-        table.insert(todraw, 0)
+        table.insert(todraw,doors[1].center.x)
+        table.insert(todraw,doors[1].center.y)
+        table.insert(todraw,0)
 
-        table.insert(todraw, v.center.x)
-        table.insert(todraw, v.center.y)
-        table.insert(todraw, 0)
-
-        table.insert(todraw, v.e.x)
-        table.insert(todraw, v.e.y)
-        table.insert(todraw, 0)
-    end]]
-
-    table.insert(todraw,doors[1].b.x)
-    table.insert(todraw,doors[1].b.y)
-    table.insert(todraw,0)
-
-    table.insert(todraw,doors[1].center.x)
-    table.insert(todraw,doors[1].center.y)
-    table.insert(todraw,0)
-
-    table.insert(todraw,doors[1].e.x)
-    table.insert(todraw,doors[1].e.y)
-    table.insert(todraw,0)
+        table.insert(todraw,doors[1].e.x)
+        table.insert(todraw,doors[1].e.y)
+        table.insert(todraw,0)
+    end
 
     table.insert(todraw,5)
     table.insert(todraw,-1)
@@ -407,6 +390,21 @@ function passDoor()
     vRight = passDoorControl(vRight, rightWheel)
 end
 
+function checkSideDoors()
+    sideDoors[-4] = sideDoors[-3]
+    sideDoors[-3] = sideDoors[-2]
+    sideDoors[-2] = sideDoors[-1]
+    sideDoors[-1] = sideDoors[0]
+    sideDoors[0] =  math.abs(doors[1].center.y)
+        < math.abs(doors[1].center.x)
+        and math.abs(doors[1].center.y) < 1.5
+    return sideDoors[0]
+        and not sideDoors[-1]
+        and not sideDoors[-2]
+        and not sideDoors[-3]
+        and not sideDoors[-4]
+end
+
 function walkOnCorridorControl(v, wheel)
     return v * math.exp(wheel * k.walkOnCorridor
         * (radius(laser[1]) - radius(laser[#laser])))
@@ -414,8 +412,7 @@ end
 
 function walkOnCorridor()
     log:write("{", doors[1].center.x, ";", doors[1].center.y, "}\n")
-    if math.abs(doors[1].center.y) < math.abs(doors[1].center.x)
-            and math.abs(doors[1].center.y) < 1 then
+    if checkSideDoors() then
         map:nextRoom()
         state = FIND_DIRECTION
     end
@@ -468,6 +465,13 @@ if (sim_call_type==sim_childscriptcall_initialization) then
 
     laser = {}
     doors = {}
+
+    sideDoors = {}
+    sideDoors[ 0] = false
+    sideDoors[-1] = false
+    sideDoors[-2] = false
+    sideDoors[-3] = false
+    sideDoors[-4] = false
 
     k = {}
     k.doordistance = 0.7
