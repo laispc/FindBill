@@ -340,11 +340,13 @@ function findDoors()
 end
 
 function goToDoorControl(v, wheel)
-    return v * math.exp(wheel * k.doordistance * -doors[1].center.x)
+    return v * math.exp(wheel * (k.doordistance * -doors[1].center.x
+        - k.doorslope * slope(doors[1].b, doors[1].e) / threshold.doorslope))
 end
 
 function goToDoor()
-    if radius(doors[1].center) < 1 then
+    log:write("door slope: ", slope(doors[1].b, doors[1].e), "\n")
+    if radius(doors[1].center) < threshold.doorproximity then
         state = PASS_DOOR
     end
 
@@ -376,8 +378,9 @@ function findDirection()
 end
 
 function passDoorControl(v, wheel)
-    return v * (0.8 * math.exp(wheel * k.passDoor
-        * (radius(doors[1].b) - radius(doors[1].e))) + 0.2)
+    return v * math.exp(wheel * k.doordistance * -doors[1].center.x)
+    -- return v * (0.8 * math.exp(wheel * k.passDoor
+    --     * (radius(doors[1].b) - radius(doors[1].e))) + 0.2)
 end
 
 function passDoor()
@@ -446,7 +449,11 @@ function corridorStateMachine()
 end
 
 function outdoorStateMachine()
-    -- body
+    if state == FIND_DIRECTION then
+        findDirection()
+    elseif state == GO_TO_DOOR then
+        state = STOP
+    end
 end
 
 if (sim_call_type==sim_childscriptcall_initialization) then 
@@ -455,8 +462,8 @@ if (sim_call_type==sim_childscriptcall_initialization) then
     log = io.open('pioneer.log', 'w')
 
     map = new_map(
-        '/home/ddiorio/Documents/USP20151/robosmoveis/TrabalhoFinal/maptop.txt',
-        '/home/ddiorio/Documents/USP20151/robosmoveis/TrabalhoFinal/missao.txt')
+        '/home/ddiorio/Documents/USP20151/robosmoveis/FindBill/maptop.txt',
+        '/home/ddiorio/Documents/USP20151/robosmoveis/FindBill/missao.txt')
 
     v0=2
 
@@ -478,9 +485,12 @@ if (sim_call_type==sim_childscriptcall_initialization) then
     k.direction = 0.007
     k.passDoor = 0.08
     k.walkOnCorridor = 0.08
+    k.doorslope = 0.02
 
     threshold = {}
     threshold.doorSize = 0.85
+    threshold.doorslope = 0.1
+    threshold.doorproximity = 0.7
 
     STOP = -1
     FIND_DIRECTION = 0
