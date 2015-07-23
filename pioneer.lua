@@ -365,7 +365,11 @@ function isOnRightDirection()
 end
 
 function findDirectionControl(v, wheel)
-    return v * math.exp(wheel * k.direction * (map.dir - bussola()))
+    robotdir = bussola()
+    if math.abs(robotdir - map.dir) > 180 then
+        robotdir = robotdir - 360;
+    end
+    return v * math.exp(wheel * k.direction * (map.dir - robotdir))
 end
 
 function findDirection()
