@@ -350,9 +350,7 @@ function findDoors()
 end
 
 function goToDoorControl(v, wheel)
-    return v * math.exp(
-        wheel * --(k.dooralignment * (radius(doors[1].b) - radius(doors[1].e))))
-         - k.doordistance * doors[1].center.x)
+    return v * math.exp(wheel * k.doordistance * -doors[1].center.x)
 end
 
 function goToDoor()
@@ -379,26 +377,55 @@ function findDirection()
     vRight = findDirectionControl(vRight, rightWheel)
 end
 
+function passDoorControl(v, wheel)
+    return v * (0.8 * math.exp(wheel * k.passDoor
+        * (radius(doors[1].b) - radius(doors[1].e))) + 0.2)
+end
+
+function passDoor()
+    vLeft = passDoorControl(vLeft, leftWheel)
+    vRight = passDoorControl(vRight, rightWheel)
+    -- local difference = radius(doors[1].b) - radius(doors[1].e)
+    -- if math.abs(difference) > 0.05 then
+    --     vLeft = vLeft - k.passDoor * difference
+    --     vRight = vRight + k.passDoor * difference
+    -- end
+end
+
 function roomStateMachine()
     if state == FIND_DIRECTION then
-        findDirection()
         if isOnRightDirection() then
             log:write("going to state GO_TO_DOOR")
             state = GO_TO_DOOR
         end
+
+        findDirection()
     elseif state == GO_TO_DOOR then
-        goToDoor()
         if radius(doors[1].center) < 1 then
             log:write("going to state PASS_DOOR")
             state = PASS_DOOR
         end
-    elseif state == PASS_DOOR then
 
+        goToDoor()
+    elseif state == PASS_DOOR then
+        if radius(doors[1].center) > 1.25 then
+            map:nextRoom()
+            state = FIND_DIRECTION
+        end
+
+        passDoor()
     end
 end
 
 function corridorStateMachine()
-    -- body
+    if state == FIND_DIRECTION then
+        if isOnRightDirection() then
+            log:write("going to state GO_TO_DOOR")
+            state = STOP
+        end
+
+        findDirection()
+    end
 end
 
 function outdoorStateMachine()
@@ -423,13 +450,15 @@ if (sim_call_type==sim_childscriptcall_initialization) then
     doors = {}
 
     k = {}
-    k.dooralignment = 0.9
+    -- k.dooralignment = 0.9
     k.doordistance = 0.7
-    k.direction = 0.07
+    k.direction = 0.007
+    k.passDoor = 0.08
 
     threshold = {}
     threshold.doorSize = 0.85
 
+    STOP = -1
     FIND_DIRECTION = 0
     GO_TO_DOOR = 1
     PASS_DOOR = 2
@@ -447,7 +476,10 @@ if (sim_call_type==sim_childscriptcall_actuation) then
     vLeft=v0
     vRight=v0
 
-    if map.actual_room.type == 'sala' then
+    if state == STOP then
+        vLeft = 0
+        vRight = 0
+    elseif map.actual_room.type == 'sala' then
         roomStateMachine()
     elseif map.actual_room.type == 'corredor' then
         corridorStateMachine()
