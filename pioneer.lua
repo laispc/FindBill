@@ -118,8 +118,10 @@ function new_map(maptop, mission)
     this.actual_room = this.from -- I am where I start
     this.to = this.rooms[l[2]]
     this.target    = {}
-    this.target.x = tonumber(l[3]:sub(1,l[3]:find(' ')-1))
-    this.target.y = tonumber(l[3]:sub(l[3]:find(' ')+1))
+    this.target.x = l[3]:sub(1,l[3]:find(' ')-1):gsub('%.',',')
+    this.target.x = tonumber(this.target.x)
+    this.target.y = l[3]:sub(l[3]:find(' ')+1):gsub('%.',',')
+    --this.target.y = tonumber(this.target.y)
     
     -- Call the dijkstra algorithm
     this.foundPath = false
@@ -134,23 +136,18 @@ function new_map(maptop, mission)
     -- These are used during robot navigation.
     this.writePath = function(self, from, to)
         from.visited = true
-        log:write(from.name)
         if(from.name == to) then return end
         if(from.north ~= nil and from.north.path 
                 and not from.north.visited) then
-            log:write("->N->")
             self:writePath(from.north, to)
         elseif(from.south ~= nil and from.south.path 
                 and not from.south.visited) then
-            log:write("->S->")
             self:writePath(from.south, to)
         elseif(from.east ~= nil and from.east.path 
                 and not from.east.visited) then
-            log:write("->L->")
             self:writePath(from.east, to)
         elseif(from.west ~= nil and from.west.path 
                 and not from.west.visited) then
-            log:write("->O->")
             self:writePath(from.west, to)
         end
     end
@@ -201,7 +198,6 @@ function new_map(maptop, mission)
             self.actual_room.visited = true
         end
         self:findDir()
-        log:write("Now on room ", self.actual_room.name, "\n")
     end
 
     this.getNextRoom = function(self)
@@ -246,10 +242,8 @@ function readLaser()
     if data ~= nil then
         data = simUnpackFloats(data)
         laser = {}
-        -- log:write("-----------------\n")
         for i=1,#data-12,3 do
             table.insert(laser, {x = data[i], y = data[i+1]})
-            -- log:write(string.format("{%.4f;%.4f}\n", data[i], data[i+1]))
         end
     end
 end
@@ -261,6 +255,16 @@ function bussola()
     AngDiscr= math.floor((AngEuler[3]*180)/3.1415926535)
     if (AngDiscr < 0) then AngDiscr=(180-math.abs(AngDiscr))+180 end
     return AngDiscr
+end
+
+function gps()
+    local data = simGetStringSignal('gps')
+    if data ~= nil then
+        data = simUnpackFloats(data)
+        return {x = data[1], y = data[2]}
+    else
+        return {x = 0, y = 0}
+    end
 end
 
 function radius(point)
@@ -276,12 +280,28 @@ function slope(from, to)
 end
 
 function findDoors()
+    found_door = false
     local d = {}
     local todraw = {}
-    for i=#laser-2,2,-1 do
+    local i = #laser - 2
+
+    robotdir = bussola()
+    if math.abs(robotdir - map.dir) > 180 then
+        robotdir = robotdir - 360
+    end
+    angleIndex = #laser/2 - (map.dir - robotdir) * 2 * math.pi / 180
+
+    if angleIndex > #laser then
+        angleIndex = #laser
+    elseif angleIndex < 1 then
+        angleIndex = 1
+    end
+
+    while i > 3 do
+    -- for i=#laser-2,2,-1 do
         if distance(laser[i], laser[i-1]) > threshold.doorSize then
             local min = {}
-            for j=i-1,1,-1 do
+            for j=i-1,3,-1 do
                 table.insert(min,
                     {dist = distance(laser[i], laser[j]), index = j})
             end
@@ -289,22 +309,25 @@ function findDoors()
                 table.sort(min, function(a, b)
                     return a.dist < b.dist
                 end)
-                if distance(laser[i], laser[min[1].index]) < 1.2 then
+                if distance(laser[i], laser[min[1].index]) < threshold.maxDoorSize then
                     table.insert(d, new_door(laser[i], i,
                                  laser[min[1].index], min[1].index))
-                    i = min.index
+                    i = min[1].index
                 end
             end
         end
+        i = i - 1
     end
 
     if #d > 0 then
         table.sort(d, function(a, b)
             return radius(a.center) < radius(b.center)
+            -- return math.abs(angleIndex - a.bIndex) < math.abs(angleIndex - b.bIndex)
         end)
+        found_door = true
         doors = d
     end
-    
+
     if #doors > 0 then
         table.insert(todraw,doors[1].b.x)
         table.insert(todraw,doors[1].b.y)
@@ -345,8 +368,10 @@ function goToDoorControl(v, wheel)
 end
 
 function goToDoor()
-    log:write("door slope: ", slope(doors[1].b, doors[1].e), "\n")
-    if radius(doors[1].center) < threshold.doorproximity then
+    if not found_door and map.actual_room.type == 'outdoor' then
+        map:nextRoom()
+        state = FIND_DIRECTION
+    elseif radius(doors[1].center) < threshold.doorproximity then
         state = PASS_DOOR
     end
 
@@ -412,20 +437,24 @@ function checkSideDoors()
         and not sideDoors[-4]
 end
 
-function walkOnCorridorControl(v, wheel)
-    return v * math.exp(wheel * k.walkOnCorridor
-        * (radius(laser[1]) - radius(laser[#laser])))
-end
-
 function walkOnCorridor()
-    log:write("{", doors[1].center.x, ";", doors[1].center.y, "}\n")
     if checkSideDoors() then
         map:nextRoom()
         state = FIND_DIRECTION
     end
+end
 
-    -- vLeft = walkOnCorridorControl(vLeft, leftWheel)
-    -- vRight = walkOnCorridorControl(vRight, rightWheel)
+function goToBillControl(v, wheel)
+    return v * math.exp(wheel * k.bill * -distance(map.target, gps()))
+end
+
+function goToBill()
+    if distance(map.target, gps()) < 1 then
+        state = STOP
+    end
+
+    vLeft = goToBillControl(vLeft, leftWheel)
+    vRight = goToBillControl(vRight, rightWheel)
 end
 
 function roomStateMachine()
@@ -456,7 +485,9 @@ function outdoorStateMachine()
     if state == FIND_DIRECTION then
         findDirection()
     elseif state == GO_TO_DOOR then
-        state = STOP
+        goToDoor()
+    elseif state == PASS_DOOR then
+        passDoor()
     end
 end
 
@@ -476,6 +507,14 @@ if (sim_call_type==sim_childscriptcall_initialization) then
 
     laser = {}
     doors = {}
+    found_door = false
+
+    distanceToDoor = {}
+    distanceToDoor[ 0] = 100
+    distanceToDoor[-1] = 100
+    distanceToDoor[-2] = 100
+    distanceToDoor[-3] = 100
+    distanceToDoor[-4] = 100
 
     sideDoors = {}
     sideDoors[ 0] = false
@@ -490,9 +529,11 @@ if (sim_call_type==sim_childscriptcall_initialization) then
     k.passDoor = 0.08
     k.walkOnCorridor = 0.08
     k.doorslope = 0.02
+    k.bill = 0.1
 
     threshold = {}
     threshold.doorSize = 0.85
+    threshold.maxDoorSize = 1.15
     threshold.doorslope = 0.1
     threshold.doorproximity = 0.7
 
@@ -508,16 +549,26 @@ if (sim_call_type==sim_childscriptcall_cleanup) then
 end 
 
 if (sim_call_type==sim_childscriptcall_actuation) then
-    log:write("----------\n")
+    if map.actual_room.type == 'outdoor' then
+        threshold.doorSize = 6.35
+        threshold.maxDoorSize = 6.45
+    else
+        threshold.doorSize = 0.85
+        threshold.maxDoorSize = 1.15
+    end
+
     readLaser()
     findDoors()
 
     vLeft=v0
     vRight=v0
 
+
     if state == STOP then
         vLeft = 0
         vRight = 0
+    elseif map.actual_room.name == map.to.name then
+        goToBill()
     elseif map.actual_room.type == 'sala' then
         roomStateMachine()
     elseif map.actual_room.type == 'corredor' then
@@ -528,4 +579,7 @@ if (sim_call_type==sim_childscriptcall_actuation) then
     
     simSetJointTargetVelocity(motorLeft,vLeft)
     simSetJointTargetVelocity(motorRight,vRight)
+
+    r = gps()
+    log:write(string.format("%.3f %.3f\n", r.x, r.y))
 end 
