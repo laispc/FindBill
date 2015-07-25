@@ -257,13 +257,41 @@ function bussola()
     return AngDiscr
 end
 
-function gps()
+function robotVector()
+    local r0 = {x = 0.0, y = 0.0}
+    for i=2,#gps do
+        r0.x = r0.x + gps[i].x
+        r0.y = r0.y + gps[i].y
+    end
+    r0.x = r0.x / (#gps - 1)
+    r0.y = r0.y / (#gps - 1)
+
+    return {x = gps[1].x - r0.x, -- gps[10].x,
+            y = gps[1].y - r0.y} -- gps[10].y}
+end
+
+function billVector()
+    local r0 = {x = 0.0, y = 0.0}
+    for i=2,#gps do
+        r0.x = r0.x + gps[i].x
+        r0.y = r0.y + gps[i].y
+    end
+    r0.x = r0.x / (#gps - 1)
+    r0.y = r0.y / (#gps - 1)
+
+    return {x = map.target.x - r0.x, -- gps[10].x,
+            y = map.target.y - r0.y} -- gps[10].y}
+end
+
+function readGps()
     local data = simGetStringSignal('gps')
     if data ~= nil then
         data = simUnpackFloats(data)
-        return {x = data[1], y = data[2]}
-    else
-        return {x = 0, y = 0}
+
+        for i=2,#gps do
+            gps[i] = gps[i-1]
+        end
+        gps[1] = {x = data[1], y = data[2]}
     end
 end
 
@@ -322,7 +350,6 @@ function findDoors()
     if #d > 0 then
         table.sort(d, function(a, b)
             return radius(a.center) < radius(b.center)
-            -- return math.abs(angleIndex - a.bIndex) < math.abs(angleIndex - b.bIndex)
         end)
         found_door = true
         doors = d
@@ -445,11 +472,49 @@ function walkOnCorridor()
 end
 
 function goToBillControl(v, wheel)
-    return v * math.exp(wheel * k.bill * -distance(map.target, gps()))
+    -- log:write("distance: ", distance(gps(), map.target), "\n")
+    -- z is the k portion of vetorial product
+    local a = billVector()
+    local b = robotVector()
+    local z = a.x*b.y - a.y*b.x
+
+    local todraw = {}
+    table.insert(todraw,a.x)
+    table.insert(todraw,a.y)
+    table.insert(todraw,0)
+
+    table.insert(todraw,b.x)
+    table.insert(todraw,b.y)
+    table.insert(todraw,0)
+
+    table.insert(todraw,0)
+    table.insert(todraw,z)
+    table.insert(todraw,0)    
+
+    table.insert(todraw,5)
+    table.insert(todraw,-1)
+    table.insert(todraw,0)
+
+    table.insert(todraw,-5)
+    table.insert(todraw,-1)
+    table.insert(todraw,0)
+
+    table.insert(todraw,-5)
+    table.insert(todraw,6)
+    table.insert(todraw,0)
+
+    table.insert(todraw,5)
+    table.insert(todraw,6)
+    table.insert(todraw,0)
+
+    local data=simPackFloats(todraw)
+    simSetStringSignal("doors",data)
+    
+    return v * math.exp(wheel * k.bill * -z)-- (1 - distance(gps(), map.target)))
 end
 
 function goToBill()
-    if distance(map.target, gps()) < 1 then
+    if distance(gps[1], map.target) < 2 then
         state = STOP
     end
 
@@ -523,13 +588,25 @@ if (sim_call_type==sim_childscriptcall_initialization) then
     sideDoors[-3] = false
     sideDoors[-4] = false
 
+    gps = {}
+    gps[1] = {x = 0.0, y = 0.0}
+    gps[2] = {x = 0.0, y = 0.0}
+    gps[3] = {x = 0.0, y = 0.0}
+    gps[4] = {x = 0.0, y = 0.0}
+    gps[5] = {x = 0.0, y = 0.0}
+    gps[6] = {x = 0.0, y = 0.0}
+    gps[7] = {x = 0.0, y = 0.0}
+    gps[8] = {x = 0.0, y = 0.0}
+    gps[9] = {x = 0.0, y = 0.0}
+    gps[10] = {x = 0.0, y = 0.0}
+
     k = {}
     k.doordistance = 0.7
     k.direction = 0.007
     k.passDoor = 0.08
     k.walkOnCorridor = 0.08
     k.doorslope = 0.02
-    k.bill = 0.1
+    k.bill = 1.3
 
     threshold = {}
     threshold.doorSize = 0.85
@@ -557,6 +634,7 @@ if (sim_call_type==sim_childscriptcall_actuation) then
         threshold.maxDoorSize = 1.15
     end
 
+    readGps()
     readLaser()
     findDoors()
 
@@ -580,6 +658,6 @@ if (sim_call_type==sim_childscriptcall_actuation) then
     simSetJointTargetVelocity(motorLeft,vLeft)
     simSetJointTargetVelocity(motorRight,vRight)
 
-    r = gps()
+    r = gps[1]
     log:write(string.format("%.3f %.3f\n", r.x, r.y))
 end 
