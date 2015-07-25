@@ -121,7 +121,7 @@ function new_map(maptop, mission)
     this.target.x = l[3]:sub(1,l[3]:find(' ')-1):gsub('%.',',')
     this.target.x = tonumber(this.target.x)
     this.target.y = l[3]:sub(l[3]:find(' ')+1):gsub('%.',',')
-    --this.target.y = tonumber(this.target.y)
+    this.target.y = tonumber(this.target.y)
     
     -- Call the dijkstra algorithm
     this.foundPath = false
