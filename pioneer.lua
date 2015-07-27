@@ -135,6 +135,7 @@ function new_map(maptop, mission)
     -- If use this, clean the visited parameters again.
     -- These are used during robot navigation.
     this.writePath = function(self, from, to)
+        log:write(tostring(from.name), " > ")
         from.visited = true
         if(from.name == to) then return end
         if(from.north ~= nil and from.north.path 
@@ -314,8 +315,10 @@ function findDoors()
     local i = #laser - 2
 
     robotdir = bussola()
-    if math.abs(robotdir - map.dir) > 180 then
-        robotdir = robotdir - 360
+    if map.dir - robotdir > 180 then
+        robotdir = robotdir + 360;
+    elseif map.dir - robotdir < -180 then
+        robotdir = robotdir - 360;
     end
     angleIndex = #laser/2 - (map.dir - robotdir) * 2 * math.pi / 180
 
@@ -337,7 +340,10 @@ function findDoors()
                 table.sort(min, function(a, b)
                     return a.dist < b.dist
                 end)
-                if distance(laser[i], laser[min[1].index]) < threshold.maxDoorSize then
+                if distance(laser[i], laser[min[1].index]) < threshold.maxDoorSize and
+                    radius({x = laser[math.floor(0.5 * (i + min[1].index))].x,
+                        y = laser[math.floor(0.5 * (i + min[1].index))].y})
+                        >  0.5 * (radius(laser[i]) + radius(laser[min[1].index])) then
                     table.insert(d, new_door(laser[i], i,
                                  laser[min[1].index], min[1].index))
                     i = min[1].index
@@ -409,23 +415,35 @@ function goToDoor()
 end
 
 function isOnRightDirection()
+    return (map.dir == 0 and ((bussola() > 335 and bussola() <= 359) 
+                or (bussola() >= 0 and bussola() < 45 )))
+                or (map.dir == 90  and bussola() > 45  and bussola() < 135)
+                or (map.dir == 270 and bussola() > 225 and bussola() < 315)
+                or (map.dir == 180 and bussola() > 135 and bussola() < 225)
+end
+
+function isOnRightDirectionCorridor()
     return (map.dir == 0 and ((bussola() > 355 and bussola() <= 359) 
                 or (bussola() >= 0 and bussola() < 5 )))
                 or (map.dir == 90  and bussola() > 85  and bussola() < 95)
-                or (map.dir == 270 and bussola() > 265 and bussola() < 275)
+                or (map.dir == 270 and bussola() > 265 and bussola() < 285)
                 or (map.dir == 180 and bussola() > 175 and bussola() < 185)
-end
+end                
 
 function findDirectionControl(v, wheel)
     robotdir = bussola()
-    if math.abs(robotdir - map.dir) > 180 then
+    if map.dir - robotdir > 180 then
+        robotdir = robotdir + 360;
+    elseif map.dir - robotdir < -180 then
         robotdir = robotdir - 360;
     end
     return v * math.exp(wheel * k.direction * (map.dir - robotdir))
 end
 
 function findDirection()
-    if isOnRightDirection() then
+    if isOnRightDirectionCorridor() and map:getNextRoom().type == 'corredor' then
+        state = GO_TO_DOOR
+    elseif isOnRightDirection() and map:getNextRoom().type ~= 'corredor' then
         state = GO_TO_DOOR
     end
 
@@ -456,7 +474,7 @@ function checkSideDoors()
     sideDoors[-1] = sideDoors[0]
     sideDoors[0] =  math.abs(doors[1].center.y)
         < math.abs(doors[1].center.x)
-        and math.abs(doors[1].center.y) < 1.5
+        and math.abs(doors[1].center.y) < threshold.sidedoor
     return sideDoors[0]
         and not sideDoors[-1]
         and not sideDoors[-2]
@@ -469,6 +487,7 @@ function walkOnCorridor()
         map:nextRoom()
         state = FIND_DIRECTION
     end
+
 end
 
 function goToBillControl(v, wheel)
@@ -601,8 +620,8 @@ if (sim_call_type==sim_childscriptcall_initialization) then
     gps[10] = {x = 0.0, y = 0.0}
 
     k = {}
-    k.doordistance = 0.7
-    k.direction = 0.007
+    k.doordistance = 1
+    k.direction = 0.006
     k.passDoor = 0.08
     k.walkOnCorridor = 0.08
     k.doorslope = 0.02
@@ -612,7 +631,9 @@ if (sim_call_type==sim_childscriptcall_initialization) then
     threshold.doorSize = 0.85
     threshold.maxDoorSize = 1.15
     threshold.doorslope = 0.1
-    threshold.doorproximity = 0.7
+    threshold.doorproximity = 0.8
+    threshold.sidedoor = 0.7
+
 
     STOP = -1
     FIND_DIRECTION = 0
