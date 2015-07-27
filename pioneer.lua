@@ -199,7 +199,6 @@ function new_map(maptop, mission)
             self.actual_room.visited = true
         end
         self:findDir()
-        log:write("now on room: ", self.actual_room.name, "\n")
     end
 
     this.getNextRoom = function(self)
