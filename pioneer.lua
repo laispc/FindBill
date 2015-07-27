@@ -506,7 +506,7 @@ function goToBillControl(v, wheel)
     table.insert(todraw,b.y)
     table.insert(todraw,0)
 
-    table.insert(todraw,0)
+    table.insert(todraw,-3)
     table.insert(todraw,z)
     table.insert(todraw,0)    
 
