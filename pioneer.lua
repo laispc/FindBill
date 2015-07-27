@@ -199,6 +199,7 @@ function new_map(maptop, mission)
             self.actual_room.visited = true
         end
         self:findDir()
+        log:write("now on room: ", self.actual_room.name, "\n")
     end
 
     this.getNextRoom = function(self)
@@ -468,6 +469,12 @@ function passDoor()
 end
 
 function checkSideDoors()
+    sideDoors[-10] = sideDoors[-9]
+    sideDoors[-9] = sideDoors[-8]
+    sideDoors[-8] = sideDoors[-7]
+    sideDoors[-7] = sideDoors[-6]
+    sideDoors[-6] = sideDoors[-5]
+    sideDoors[-5] = sideDoors[-4]
     sideDoors[-4] = sideDoors[-3]
     sideDoors[-3] = sideDoors[-2]
     sideDoors[-2] = sideDoors[-1]
@@ -480,6 +487,12 @@ function checkSideDoors()
         and not sideDoors[-2]
         and not sideDoors[-3]
         and not sideDoors[-4]
+        and not sideDoors[-5]
+        and not sideDoors[-6]
+        and not sideDoors[-7]
+        and not sideDoors[-8]
+        and not sideDoors[-9]
+        and not sideDoors[-10]
 end
 
 function walkOnCorridor()
@@ -606,6 +619,12 @@ if (sim_call_type==sim_childscriptcall_initialization) then
     sideDoors[-2] = false
     sideDoors[-3] = false
     sideDoors[-4] = false
+    sideDoors[-5] = false
+    sideDoors[-6] = false
+    sideDoors[-7] = false
+    sideDoors[-8] = false
+    sideDoors[-9] = false
+    sideDoors[-10] = false
 
     gps = {}
     gps[1] = {x = 0.0, y = 0.0}
@@ -631,8 +650,8 @@ if (sim_call_type==sim_childscriptcall_initialization) then
     threshold.doorSize = 0.85
     threshold.maxDoorSize = 1.15
     threshold.doorslope = 0.1
-    threshold.doorproximity = 0.8
-    threshold.sidedoor = 0.7
+    threshold.doorproximity = 0.7
+    threshold.sidedoor = 0.85
 
 
     STOP = -1
